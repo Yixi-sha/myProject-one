@@ -1,0 +1,4 @@
+test.o: src/test.cpp src/../inc/rtp.h \
+ src/../inc/../DateStructure/Exception/Exception.h \
+ src/../inc/../DateStructure/Exception/../Object/Object.h \
+ src/../inc/serial.h
