@@ -40,51 +40,126 @@ namespace yixi
 class yixiSer : public  Object
 {
 private:
-    int i_ret ;
-
     int i_sfd;
-    struct termios i_termios;
+    
+    bool flagExit(int flag);
+    int getflage(int mask);
+    void setFlag(int mask, int flag, bool set);
 public:
-    yixiSer(void) : i_ret(0)
+    yixiSer(void) 
     {
-       i_sfd = open("/dev/ttySP0",O_RDWR | O_NOCTTY | O_NDELAY); 
+       i_sfd = open("/dev/ttySP1",O_RDWR | O_NOCTTY | O_NDELAY); 
        if(i_sfd < 0)
        {
            THROW_EXCEPTION(InvalidOperationException,"can't open /dev/ttySP0");
        }   
-       /*fcntl(i_sfd, F_SETFL, 0);  */ /*set serial read don`t delay*/
+       fcntl(i_sfd, F_SETFL, 0);   /*set serial read do delay*/
     }
+
+    int getBAUD(void);
+    void setBAUD(int BAUD);
+    int getDataBit(void);
+    void setDataBit(int DataBit);
+    bool isOnestopBit(void);
+    void setOneStopBit(bool one);
+    bool isReadlyRecv(void);
+    void setReadlyRecv(bool recv);
+    bool isParenb();
+    void setParenb(bool par);
+    bool isOddPar(void);
+    void setOddpar(bool odd);
 
     void test(void)
     {
+        char recv_buf[999];
         cout << i_sfd << endl;
-        this->getBAUD() ;
+        
+
+        /*set getDataBit*/
+        this->setDataBit(CS8);
+        this->getDataBit();
+
+        /*set BAUD*/
         this->setBAUD(B115200);
         this->getBAUD();
-        ssize_t n = write(i_sfd,"yixi-sha",8);
-        cout << n << endl;
+
+        
+        this->setOneStopBit(true);
+
+        this->setParenb(false);
+        this->setReadlyRecv(true);
+
+
+        cout << "read bit "<< this->isReadlyRecv() << endl;
+        cout << "one stop bit "<< this->isOnestopBit() << endl;
+        cout << "parority is "<< this->isParenb() << endl;
+        cout << "oddParority is "<< this->isOddPar() << endl;
+
+        ssize_t n = write(i_sfd,"yixi-sha\n",sizeof("yixi-sha\n"));
+        cout << "send size id " <<n << endl;
+        n = read(i_sfd, recv_buf,999);
+        recv_buf[n] = '\0';
+        cout << "recv_buf msg is " << recv_buf << endl;
+
     }
     
-    int getBAUD(void);
-    void setBAUD(int BAUD);
-
     ~yixiSer(void)
     {
        close(i_sfd);
     }
 };
 
-
-int yixiSer::getBAUD(void)
+bool yixiSer::flagExit(int flag)
 {
-    i_ret = tcgetattr(i_sfd, & i_termios);
-    int ret;
+    int i_ret;
+    struct termios i_termios;
+    i_ret = tcgetattr(i_sfd, &i_termios);
     if(i_ret)
     {
         THROW_EXCEPTION(InvalidOperationException,"tcgetattr fail ");
     }
-    ret = i_termios.c_cflag & CBAUD ;
-    switch( ret )
+    return (i_termios.c_cflag & flag ? true : false);
+}
+
+void yixiSer::setFlag(int mask, int flag, bool set)
+{
+    int i_ret;
+    struct termios i_termios;
+    i_ret = tcgetattr(i_sfd, & i_termios);
+    if(i_ret)
+    {
+        THROW_EXCEPTION(InvalidOperationException,"tcgetattr fail ");
+    }
+    i_termios.c_cflag &= (~mask);
+    if(set)
+    {
+        i_termios.c_cflag |= flag;
+    }
+    
+    i_ret = tcsetattr(i_sfd, TCSANOW,&i_termios);
+    if(i_ret)
+    {
+        THROW_EXCEPTION(InvalidOperationException,"tcsetattr fail ");  
+    } 
+}
+
+int yixiSer::getflage(int mask)
+{
+    int i_ret;
+    struct termios i_termios;
+    i_ret = tcgetattr(i_sfd, & i_termios);
+    int ret = 0;
+    if(i_ret)
+    {
+        THROW_EXCEPTION(InvalidOperationException,"tcgetattr fail ");
+    }
+    return ret = i_termios.c_cflag & mask;
+}
+
+int yixiSer::getBAUD(void)
+{
+    int ret = this->getflage(CBAUD);
+    switch(ret)
     {
         case B0 :
             cout << "this 0 " << endl;
@@ -117,7 +192,7 @@ int yixiSer::getBAUD(void)
             cout << "this B460800 " << endl;
             break;
         default :
-            cout << "this no " << endl;
+            cout << "CBAUD no " << endl;
     }
 
     return ret;
@@ -125,14 +200,78 @@ int yixiSer::getBAUD(void)
 
 void yixiSer::setBAUD(int BAUD)
 {
-    i_termios.c_cflag = ( (i_termios.c_cflag & BAUD ) |  BAUD );
-    i_ret = tcsetattr(i_sfd, TCSANOW,&i_termios);
-    if(i_ret)
-    {
-        THROW_EXCEPTION(InvalidOperationException,"tcsetattr fail ");  
-    }
+    this->setFlag(CBAUD, BAUD, true);
 }
 
+int yixiSer::getDataBit(void)
+{
+    int ret = this->getflage(CSIZE);
+    switch( ret)
+    {
+        case CS5 :
+            cout << "this CS5 " << endl;
+            break;
+        case CS6 :
+            cout << "this CS6 " << endl;
+            break;
+        case CS7 :
+            cout << "this CS7 " << endl;
+            break;
+        case CS8 :
+            cout << "this CS8 " << endl;
+            break;
+        default :
+            cout << "CSIZE no " << endl;
+    }
+    return ret;
+}
+
+void yixiSer::setDataBit(int DataBit)
+{
+    this->setFlag(CSIZE, DataBit, true);
+}
+
+ bool yixiSer::isOnestopBit()
+ {
+    
+    return !this->flagExit(CSTOPB);
+}
+
+void yixiSer::setOneStopBit(bool one)
+{
+    this->setFlag(CSTOPB, CSTOPB, !one);  
+}
+
+bool yixiSer::isReadlyRecv()
+{   
+    return (this->flagExit(CLOCAL | CREAD  ));
+}
+
+void yixiSer::setReadlyRecv(bool recv)
+{
+    this->setFlag((CREAD | CLOCAL), (CREAD | CLOCAL), recv);
+}
+
+bool yixiSer::isParenb()
+{
+    return this->flagExit(PARENB);
+}
+
+
+void yixiSer::setParenb(bool par)
+{
+    this->setFlag(PARENB, PARENB, par);
+}
+
+bool yixiSer::isOddPar(void)
+{
+    return this->flagExit(PARODD);
+}
+
+void yixiSer::setOddpar(bool odd)
+{
+    this->setFlag(PARODD, PARODD, odd);
+}
 
 }
 
