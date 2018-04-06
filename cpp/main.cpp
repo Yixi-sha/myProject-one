@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include "../inc/rtp.h"
-#include "../inc/serial.h"
+#include "./moudle/eth/inc/rtp.h"
+#include "./moudle/ser/inc/serial.h"
 
 using namespace yixi;
 using namespace std;
@@ -16,7 +16,9 @@ extern "C"
 int main(void)
 { 
     yixiSer ser;
+    func();
     ser.test();
+    
 
 /*    yixiRtp RTP;
     sockaddr_in recv;

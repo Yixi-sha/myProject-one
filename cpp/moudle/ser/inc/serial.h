@@ -19,8 +19,7 @@
          
 
 /*using yixi lib*/
-#include "../DateStructure/Exception/Exception.h"
-
+#include "../../DateStructure/Exception/Exception.h"
 
 
 extern "C"
@@ -30,30 +29,51 @@ extern "C"
     int fcntl(int fd, int cmd, ... );
     int tcgetattr(int fd, struct termios *termios_p);
     int tcsetattr(int fd, int optional_actions,    \
-                     const struct termios *termios_p);
+                     const struct termios *termios_p); 
 }
 
 using namespace std;
 
 namespace yixi
 {
+
+
+
 class yixiSer : public  Object
 {
 private:
+
+    enum flag_enum  
+    {
+        c_cflag,
+        c_lflag,
+        c_iflag,
+        c_oflag,
+    };
     int i_sfd;
     
-    bool flagExit(int flag);
-    int getflage(int mask);
-    void setFlag(int mask, int flag, bool set);
+    bool flagExit(int flag,flag_enum c_flag);
+    int getflage(flag_enum flag);
+    void setFlag(int mask, int flag, bool set,flag_enum e_flag);
+    void close_ser()
+    {
+        close(i_sfd);
+    }
+    void open_ser()
+    {
+        i_sfd = open("/dev/ttySP1",O_RDWR | O_NOCTTY | O_NDELAY); 
+        if(i_sfd < 0)
+       {
+           THROW_EXCEPTION(InvalidOperationException,"can't open /dev/ttySP0");
+       } 
+    }
+
 public:
     yixiSer(void) 
     {
-       i_sfd = open("/dev/ttySP1",O_RDWR | O_NOCTTY | O_NDELAY); 
-       if(i_sfd < 0)
-       {
-           THROW_EXCEPTION(InvalidOperationException,"can't open /dev/ttySP0");
-       }   
-       fcntl(i_sfd, F_SETFL, 0);   /*set serial read do delay*/
+        open_ser();
+        fcntl(i_sfd, F_SETFL, 0);   /*set serial read do delay*/
+        setFlag((IXON | IXOFF | IXANY), (IXON | IXOFF | IXANY), false, c_iflag);
     }
 
     int getBAUD(void);
@@ -69,6 +89,14 @@ public:
     bool isOddPar(void);
     void setOddpar(bool odd);
 
+    bool isOriginModel();
+    void setOriginModel(bool set);
+    bool isStandardModel();
+    void setStandardModel(bool set);
+
+    bool isOriginOutput();
+    void setOriginOutput(bool set);
+
     void test(void)
     {
         char recv_buf[999];
@@ -82,34 +110,44 @@ public:
         /*set BAUD*/
         this->setBAUD(B115200);
         this->getBAUD();
-
         
         this->setOneStopBit(true);
 
         this->setParenb(false);
+        this->setOriginModel(true);
         this->setReadlyRecv(true);
+
+        this->setOriginOutput(true);
 
 
         cout << "read bit "<< this->isReadlyRecv() << endl;
         cout << "one stop bit "<< this->isOnestopBit() << endl;
         cout << "parority is "<< this->isParenb() << endl;
         cout << "oddParority is "<< this->isOddPar() << endl;
+        cout << "is origin  "<< this->isOriginModel() << endl;
+        cout << "is origin output  "<< this->isOriginOutput() << endl;
 
-        ssize_t n = write(i_sfd,"yixi-sha\n",sizeof("yixi-sha\n"));
+        ssize_t n = write(i_sfd,"yixi-sha yixi-sha\n",sizeof("yixi-sha yixi-sha\n"));
         cout << "send size id " <<n << endl;
         n = read(i_sfd, recv_buf,999);
-        recv_buf[n] = '\0';
-        cout << "recv_buf msg is " << recv_buf << endl;
-
+        
+        if(n > 0)
+        {
+            recv_buf[n] = '\0';
+            cout << "recv_buf msg is " << recv_buf << endl;
+        }
+            
     }
-    
+
     ~yixiSer(void)
     {
-       close(i_sfd);
+       this->close_ser();
     }
 };
 
-bool yixiSer::flagExit(int flag)
+
+
+bool yixiSer::flagExit(int flag, flag_enum c_flag)
 {
     int i_ret;
     struct termios i_termios;
@@ -118,10 +156,19 @@ bool yixiSer::flagExit(int flag)
     {
         THROW_EXCEPTION(InvalidOperationException,"tcgetattr fail ");
     }
-    return (i_termios.c_cflag & flag ? true : false);
+    if(c_flag == c_cflag)
+        return (i_termios.c_cflag & flag ? true : false);
+    else if (c_flag == c_lflag)
+        return (i_termios.c_lflag & flag ? true : false);
+    else if (c_flag == c_iflag)
+        return (i_termios.c_iflag & flag ? true : false);
+    else if (c_flag == c_oflag)
+        return (i_termios.c_oflag & flag ? true : false);
+    else
+        THROW_EXCEPTION(InvalidParameterException,"InvalidParameterException"); 
 }
 
-void yixiSer::setFlag(int mask, int flag, bool set)
+void yixiSer::setFlag(int mask, int flag, bool set,flag_enum e_flag)
 {
     int i_ret;
     struct termios i_termios;
@@ -130,12 +177,27 @@ void yixiSer::setFlag(int mask, int flag, bool set)
     {
         THROW_EXCEPTION(InvalidOperationException,"tcgetattr fail ");
     }
-    i_termios.c_cflag &= (~mask);
+    if(e_flag == c_cflag)
+        i_termios.c_cflag &= (~mask);
+    else if(e_flag == c_lflag)
+        i_termios.c_lflag &= (~mask);
+    else if(e_flag == c_iflag)
+        i_termios.c_iflag &= (~mask);
+    else if(e_flag == c_oflag)
+        i_termios.c_oflag &= (~mask);
+    else
+        THROW_EXCEPTION(InvalidParameterException,"InvalidParameterException");
     if(set)
     {
-        i_termios.c_cflag |= flag;
+        if(e_flag == c_cflag)
+            i_termios.c_cflag |= flag;
+        else if (e_flag == c_lflag)
+            i_termios.c_lflag |= flag;
+        else if(e_flag == c_iflag)
+            i_termios.c_iflag |= flag;
+        else if(e_flag == c_oflag)
+            i_termios.c_oflag |= flag;
     }
-    
     i_ret = tcsetattr(i_sfd, TCSANOW,&i_termios);
     if(i_ret)
     {
@@ -143,7 +205,7 @@ void yixiSer::setFlag(int mask, int flag, bool set)
     } 
 }
 
-int yixiSer::getflage(int mask)
+int yixiSer::getflage(flag_enum flag)
 {
     int i_ret;
     struct termios i_termios;
@@ -153,13 +215,56 @@ int yixiSer::getflage(int mask)
     {
         THROW_EXCEPTION(InvalidOperationException,"tcgetattr fail ");
     }
-    return ret = i_termios.c_cflag & mask;
+    if(flag == c_cflag)
+    {
+        return ret = i_termios.c_cflag;
+    }
+    else if (flag == c_lflag)
+    {
+        return ret = i_termios.c_lflag;
+    }
+    else
+    {
+        THROW_EXCEPTION(InvalidParameterException,"InvalidParameterException ");
+    }
+}
+
+bool yixiSer::isOriginModel()
+{
+    return !this->flagExit((ICANON | ECHO | ECHOE | ISIG),c_lflag);
+}
+
+void yixiSer::setOriginModel(bool set)
+{
+    this->setFlag((ICANON | ECHO | ECHOE | ISIG), (ICANON | ECHO | ECHOE | ISIG),\
+                     !set,c_lflag);
+}
+
+bool yixiSer::isOriginOutput()
+{
+    return !this->flagExit(OPOST,c_oflag);
+}
+void yixiSer::setOriginOutput(bool set)
+{
+    this->setFlag(OPOST, OPOST,\
+                     !set,c_oflag);
+}
+
+bool yixiSer::isStandardModel()
+{
+    return this->flagExit((ICANON | ECHO | ECHOE ),c_lflag);
+}
+
+void yixiSer::setStandardModel(bool set)
+{
+    this->setFlag((ICANON | ECHO | ECHOE ), (ICANON | ECHO | ECHOE | ISIG),\
+                     set,c_lflag);
 }
 
 int yixiSer::getBAUD(void)
 {
-    int ret = this->getflage(CBAUD);
-    switch(ret)
+    int ret = this->getflage(c_cflag);
+    switch(ret & CBAUD)
     {
         case B0 :
             cout << "this 0 " << endl;
@@ -200,13 +305,13 @@ int yixiSer::getBAUD(void)
 
 void yixiSer::setBAUD(int BAUD)
 {
-    this->setFlag(CBAUD, BAUD, true);
+    this->setFlag(CBAUD, BAUD, true, c_cflag);
 }
 
 int yixiSer::getDataBit(void)
 {
-    int ret = this->getflage(CSIZE);
-    switch( ret)
+    int ret = this->getflage(c_cflag);
+    switch( ret & CSIZE)
     {
         case CS5 :
             cout << "this CS5 " << endl;
@@ -228,49 +333,49 @@ int yixiSer::getDataBit(void)
 
 void yixiSer::setDataBit(int DataBit)
 {
-    this->setFlag(CSIZE, DataBit, true);
+    this->setFlag(CSIZE, DataBit, true, c_cflag);
 }
 
  bool yixiSer::isOnestopBit()
- {
-    
-    return !this->flagExit(CSTOPB);
+ {  
+    return !this->flagExit(CSTOPB,c_cflag);
 }
 
 void yixiSer::setOneStopBit(bool one)
 {
-    this->setFlag(CSTOPB, CSTOPB, !one);  
+    this->setFlag(CSTOPB, CSTOPB, !one, c_cflag);  
 }
 
 bool yixiSer::isReadlyRecv()
 {   
-    return (this->flagExit(CLOCAL | CREAD  ));
+    return this->flagExit((CLOCAL | CREAD ), c_cflag);
 }
 
 void yixiSer::setReadlyRecv(bool recv)
 {
-    this->setFlag((CREAD | CLOCAL), (CREAD | CLOCAL), recv);
+    this->setFlag((CREAD | CLOCAL), (CREAD | CLOCAL), recv, c_cflag);
 }
 
 bool yixiSer::isParenb()
 {
-    return this->flagExit(PARENB);
+    return this->flagExit(PARENB, c_cflag);
 }
 
 
 void yixiSer::setParenb(bool par)
 {
-    this->setFlag(PARENB, PARENB, par);
+    this->setFlag(PARENB, PARENB, par,c_cflag);
 }
 
 bool yixiSer::isOddPar(void)
 {
-    return this->flagExit(PARODD);
+    return this->flagExit(PARODD, c_cflag);
 }
 
 void yixiSer::setOddpar(bool odd)
 {
-    this->setFlag(PARODD, PARODD, odd);
+    this->setFlag(PARODD, PARODD, odd, c_cflag);
+    this->setFlag((INPCK | ISTRIP), (INPCK | ISTRIP), true, c_iflag);
 }
 
 }

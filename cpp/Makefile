@@ -4,24 +4,28 @@ CC := arm-linux-g++
 TARGET := app.out
 TYPE := cpp
 
+MODULE := eth ser
+		  
 
-DIR_INC := inc 
-DIR_SRC := src
+MODULE := $(addprefix moudle/, $(MODULE))
+
+DIR_INC := $(addsuffix /inc, $(MODULE)) 
+DIR_SRC := . $(addsuffix /src, $(MODULE))
 DIR_BUILD := build
 
 MKDIR := mkdir
 RM := rm -rf
 
-
 CURRENT := $(realpath .)
 
-SRCS := $(wildcard $(DIR_SRC)/*.$(TYPE))
+SRCS := $(wildcard $(addsuffix /*.$(TYPE), $(DIR_SRC)))
 
 OBJS := $(SRCS:.$(TYPE)=.o)
-OBJS := $(patsubst $(DIR_SRC)/%, $(DIR_BUILD)/%, $(OBJS))
+OBJS := $(notdir $(OBJS))
+OBJS := $(addprefix $(DIR_BUILD)/, $(OBJS)) 
 
-DEPS := $(SRCS:.$(TYPE)=.dep)
-DEPS := $(patsubst $(DIR_SRC)/%, $(DIR_BUILD)/%, $(DEPS))
+
+DEPS := $(OBJS:.o=.dep)
 
 vpath %.h $(DIR_INC)
 vpath %.$(TYPE) $(DIR_SRC)
@@ -37,7 +41,7 @@ endif
 all : $(TARGET)
 
 $(TARGET) : $(OBJS)
-	$(CC) -o $@ $^
+	$(CC) -o $@ -Xlinker "-(" $^ -Xlinker "-)"
 
 test :
 	@echo "$(DEPS)"

@@ -27,7 +27,7 @@
           
 
 /*using yixi lib*/
-#include "../DateStructure/Exception/Exception.h"
+#include "../../DateStructure/Exception/Exception.h"
 
 
 #define UDP_port 3333 
